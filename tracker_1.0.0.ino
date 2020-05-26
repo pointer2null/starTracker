@@ -1,5 +1,5 @@
 /*
- *  This program is free software: you can redistribute it and/or modify
+    This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
@@ -11,27 +11,27 @@
 
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
- * 
- * (c) 2020 Gary Butler grbutler@gmail.com 
- * 
- * StarTracker control. When a Nema 17 or equivelent stepper is connected to a compatable controller
- * and the output is geared as shown, then the final output shaft should revolve once per siderial day.
- * 
- * Hardware used:
- * Nema 17 stepper with 99.0506:1 planetory gearbox
- * final drive 3:1 toothed belt
- * TB6600 stepper driver.
- * Arduino Uno R3
- * 0.91 INCH OLED Display: Resolution is 128*32
- * 8 x push buttons
- * 
- * Siderial day = 86164.1 seconds
- * gearbox 99.0506:1
- * pully 3:1
- * 200 steps 16 microsteps
- *
- * each microstep = 0.0906145625seconds = 90.6145625ms
- *
+
+   (c) 2020 Gary Butler grbutler@gmail.com
+
+   StarTracker control. When a Nema 17 or equivelent stepper is connected to a compatable controller
+   and the output is geared as shown, then the final output shaft should revolve once per siderial day.
+
+   Hardware used:
+   Nema 17 stepper with 99.0506:1 planetory gearbox
+   final drive 3:1 toothed belt
+   TB6600 stepper driver.
+   Arduino Uno R3
+   0.91 INCH OLED Display: Resolution is 128*32
+   8 x push buttons
+
+   Siderial day = 86164.1 seconds
+   gearbox 99.0506:1
+   pully 3:1
+   200 steps 16 microsteps
+
+   each microstep = 0.0906145625seconds = 90.6145625ms
+
 **/
 
 #include <U8g2lib.h>
@@ -82,18 +82,20 @@ bool          rwd            = OFF;       // in rwd mode
 int           high_period    = DEFAULT_H; // current drive high period
 int           low_period     = DEFAULT_L; // current drive low period
 
-const char    *dispMessage;               // current message
+String        dispMessage;                // current message
 unsigned long msgSetTime     = 0;         // timestamp for new message
 
 // counters for button press
-unsigned long rstPressCount  = 0;
-unsigned long upPressCount   = 0;
-unsigned long dwnPressCount  = 0;
-unsigned long rwdPressCount  = 0;
-unsigned long revPressCount  = 0;
-unsigned long ffwdPressCount = 0;
+unsigned long startPressCount = 0;
+unsigned long rstPressCount   = 0;
+unsigned long upPressCount    = 0;
+unsigned long dwnPressCount   = 0;
+unsigned long rwdPressCount   = 0;
+unsigned long revPressCount   = 0;
+unsigned long ffwdPressCount  = 0;
 
 // debouncers
+Bounce start_b = Bounce();
 Bounce rev_b   = Bounce();
 Bounce rwd_b   = Bounce();
 Bounce up_b    = Bounce();
@@ -111,7 +113,7 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 
 void setup() {
   u8g2.begin(); // Display
-  showMsg("WELCOME");
+  showMsg("G-Star Trax");
   displayMessage();
 
   // initialize timer1
@@ -138,6 +140,7 @@ void setup() {
   pinMode(BTN_START,         INPUT_PULLUP);
   pinMode(BTN_STOP,          INPUT_PULLUP);
 
+  start_b.attach(BTN_START,  INPUT_PULLUP);
   reset_b.attach(BTN_RST,    INPUT_PULLUP);
   ffwd_b.attach(BTN_FFWD,    INPUT_PULLUP);
   up_b.attach  (BTN_UP,      INPUT_PULLUP);
@@ -148,6 +151,8 @@ void setup() {
   // set initial direction and enable pins
   digitalWrite(DIRECTION, direction);
   digitalWrite(ENABLE,    enabled);
+
+  showMsg("G-Star Trax");
 }
 
 
@@ -171,23 +176,19 @@ void loop() {
 }
 
 void readButtons() {
-  if (!digitalRead(BTN_START) && !enabled) {
-    showMsg("START");
-    enabled = ON;
-    setCurrentSpeed();
-  }
   if (!digitalRead(BTN_STOP) && enabled) {
     showMsg("STOP");
     enabled = OFF;
     digitalWrite(PULSE, OFF);
   }
 
-  processButton(&reset_b, &rstPressCount,  processRstButton, "reset");
-  processButton(&ffwd_b,  &ffwdPressCount, processFfwdButton, "ffwd");
-  processButton(&rwd_b,   &rwdPressCount,  processRwdButton, "rwd");
-  processButton(&rev_b,   &revPressCount,  processRevButton, "rev");
-  processButton(&up_b,    &upPressCount,   processUpButton, "up");
-  processButton(&dwn_b,   &dwnPressCount,  processDownButton, "down");
+  processButton(&start_b, &startPressCount, processStartButton);
+  processButton(&reset_b, &rstPressCount,   processRstButton);
+  processButton(&ffwd_b,  &ffwdPressCount,  processFfwdButton);
+  processButton(&rwd_b,   &rwdPressCount,   processRwdButton);
+  processButton(&rev_b,   &revPressCount,   processRevButton);
+  processButton(&up_b,    &upPressCount,    processUpButton);
+  processButton(&dwn_b,   &dwnPressCount,   processDownButton);
 }
 
 void setDefaultSpeed() {
@@ -210,6 +211,26 @@ void setHighSpeed() {
   OCR1B = (int) H_SPEED_L / 2;
   OCR1A = H_SPEED_L;
   sei();//allow interrupts
+}
+
+void processStartButton(button_op press) {
+  switch (press) {
+    case BON: {
+        if (!enabled) {
+          enabled = ON;
+          showMsg("START");
+          setCurrentSpeed();
+        }
+        break;
+      }
+    case BHOLD: {
+        showMsg(String(low_period, DEC ));
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
 }
 
 void processFfwdButton(button_op press) {
@@ -272,7 +293,7 @@ void processRstButton(button_op press) {
       }
     case BHOLD:
     case BLONG: {
-        showMsg("FULL RESET");
+        showMsg("G-Star Trax");
         rstPressCount = 0;
         ffwd = OFF;
         rwd = OFF;
@@ -321,13 +342,13 @@ void processUpButton(button_op press) {
       }
     case BON: {
         low_period -= SPEED_STEP_S;
-        showMsg("INCREASE");
+        showMsg(String(low_period, DEC ));
         break;
       }
     case BLONG:
     case BHOLD: {
-        showMsg("INCREASE++");
         low_period -= SPEED_STEP_F;
+        showMsg(String(low_period, DEC ));
         break;
       }
     case DEFAULT: {
@@ -350,13 +371,14 @@ void processDownButton(button_op press) {
       }
     case BON: {
         low_period += SPEED_STEP_S;
-        showMsg("DECREASE");
+        showMsg(String(low_period, DEC ));
         break;
       }
     case BLONG:
     case BHOLD: {
         showMsg("DECREASE++");
         low_period += SPEED_STEP_F;
+        showMsg(String(low_period, DEC ));
         break;
       }
     case DEFAULT: {
@@ -366,7 +388,7 @@ void processDownButton(button_op press) {
   setCurrentSpeed();
 }
 
-void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press), String name) {
+void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
   b->update();
   if (b->fell()) {
     (*counter) = 0;
@@ -386,7 +408,7 @@ void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press
 }
 
 
-void showMsg(const char *message) {
+void showMsg(String message) {
   msgSetTime = millis();
   dispMessage = message;
 }
@@ -397,12 +419,13 @@ void displayMessage() {
   if (millis() > msgSetTime + messageShowTime) {
     // clear message
     if (direction) {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<<<< RUN CCW" : "< RUN CCW") : "STOPPED"));
+      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : "STOPPED"));
     } else {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RUN CW >>>>" : "RUN CW >") : "STOPPED"));
+      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : "STOPPED"));
     }
   } else {
-    u8g2.drawStr(4, 30, dispMessage);
+    u8g2.setCursor(4, 30);
+    u8g2.print(dispMessage);
   }
   u8g2.sendBuffer();
 }
