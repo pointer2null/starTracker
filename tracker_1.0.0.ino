@@ -55,8 +55,8 @@
 // Constants
 # define ON               true
 # define OFF              false
-# define FORWARD          true
-# define REVERSE          false
+# define FORWARD          false
+# define REVERSE          true
 # define messageShowTime  3000            // count time for a message to display before status returns
 
 # define SLOW             80              // switch count before we go to hold
