@@ -51,12 +51,13 @@
 # define BTN_DWN     5                    // speed -
 # define BTN_REVERSE 4                    // Reverse DIRECTION
 # define BTN_STOP    3                    // stop
+# define LASER       2                    // high activates laser
 
 // Constants
 # define ON               true
 # define OFF              false
-# define FORWARD          false
-# define REVERSE          true
+# define FORWARD          true
+# define REVERSE          false
 # define messageShowTime  3000            // count time for a message to display before status returns
 
 # define SLOW             80              // switch count before we go to hold
@@ -64,9 +65,11 @@
 
 # define DEFAULT_H        11315           // default high drive period
 # define DEFAULT_L        22635           // default low drive period (must be <65536)
-# define H_SPEED_L        1000            // default low drive for high speed
+# define H_SPEED_L        500            // default low drive for high speed
 # define SPEED_STEP_S     2               // speed inc/dec step amount (inc/red low period)
 # define SPEED_STEP_F     20              // speed inc/dec fast step amount
+
+# define LOGO             "G-Star Trax"
 
 # define BOUNCE_WITH_PROMPT_DETECTION
 # define FONT u8g2_font_logisoso16_tr     // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -81,12 +84,14 @@ bool          ffwd           = OFF;       // in ffwd mode
 bool          rwd            = OFF;       // in rwd mode
 int           high_period    = DEFAULT_H; // current drive high period
 int           low_period     = DEFAULT_L; // current drive low period
+bool          laser          = OFF;       // laser
 
 String        dispMessage;                // current message
 unsigned long msgSetTime     = 0;         // timestamp for new message
 
 // counters for button press
 unsigned long startPressCount = 0;
+unsigned long stopPressCount  = 0;
 unsigned long rstPressCount   = 0;
 unsigned long upPressCount    = 0;
 unsigned long dwnPressCount   = 0;
@@ -96,6 +101,7 @@ unsigned long ffwdPressCount  = 0;
 
 // debouncers
 Bounce start_b = Bounce();
+Bounce stop_b  = Bounce();
 Bounce rev_b   = Bounce();
 Bounce rwd_b   = Bounce();
 Bounce up_b    = Bounce();
@@ -113,7 +119,7 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 
 void setup() {
   u8g2.begin(); // Display
-  showMsg("G-Star Trax");
+  showMsg(LOGO);
   displayMessage();
 
   // initialize timer1
@@ -136,23 +142,22 @@ void setup() {
   pinMode(ENABLE,            OUTPUT);
   pinMode(DIRECTION,         OUTPUT);
   pinMode(PULSE,             OUTPUT);
+  pinMode(LASER,             OUTPUT);
 
-  pinMode(BTN_START,         INPUT_PULLUP);
-  pinMode(BTN_STOP,          INPUT_PULLUP);
-
-  start_b.attach(BTN_START,  INPUT_PULLUP);
-  reset_b.attach(BTN_RST,    INPUT_PULLUP);
-  ffwd_b.attach(BTN_FFWD,    INPUT_PULLUP);
-  up_b.attach  (BTN_UP,      INPUT_PULLUP);
-  rwd_b.attach (BTN_RWD,     INPUT_PULLUP);
-  dwn_b.attach (BTN_DWN,     INPUT_PULLUP);
-  rev_b.attach (BTN_REVERSE, INPUT_PULLUP);
+  start_b.attach(BTN_START,   INPUT_PULLUP);
+  stop_b.attach (BTN_STOP,    INPUT_PULLUP);
+  reset_b.attach(BTN_RST,     INPUT_PULLUP);
+  ffwd_b.attach (BTN_FFWD,    INPUT_PULLUP);
+  up_b.attach   (BTN_UP,      INPUT_PULLUP);
+  rwd_b.attach  (BTN_RWD,     INPUT_PULLUP);
+  dwn_b.attach  (BTN_DWN,     INPUT_PULLUP);
+  rev_b.attach  (BTN_REVERSE, INPUT_PULLUP);
 
   // set initial direction and enable pins
   digitalWrite(DIRECTION, direction);
   digitalWrite(ENABLE,    enabled);
 
-  showMsg("G-Star Trax");
+  showMsg("Ready");
 }
 
 
@@ -176,13 +181,10 @@ void loop() {
 }
 
 void readButtons() {
-  if (!digitalRead(BTN_STOP) && enabled) {
-    showMsg("STOP");
-    enabled = OFF;
-    digitalWrite(PULSE, OFF);
-  }
+
 
   processButton(&start_b, &startPressCount, processStartButton);
+  processButton(&stop_b,  &stopPressCount,  processStopButton);
   processButton(&reset_b, &rstPressCount,   processRstButton);
   processButton(&ffwd_b,  &ffwdPressCount,  processFfwdButton);
   processButton(&rwd_b,   &rwdPressCount,   processRwdButton);
@@ -211,6 +213,34 @@ void setHighSpeed() {
   OCR1B = (int) H_SPEED_L / 2;
   OCR1A = H_SPEED_L;
   sei();//allow interrupts
+}
+
+void processStopButton(button_op press) {
+  switch (press) {
+    case BON: {
+        if (enabled) {
+          showMsg("STOP");
+          enabled = OFF;
+          digitalWrite(PULSE, OFF);
+        }
+        break;
+      }
+    case BHOLD: {
+        stopPressCount = 0;
+        if (laser) {
+          showMsg("Laser off");
+          digitalWrite(LASER, OFF);
+        } else {
+          showMsg("Laser on");
+          digitalWrite(LASER, ON);
+        }
+        laser = !laser;
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
 }
 
 void processStartButton(button_op press) {
@@ -419,9 +449,9 @@ void displayMessage() {
   if (millis() > msgSetTime + messageShowTime) {
     // clear message
     if (direction) {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : "STOPPED"));
+      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : LOGO));
     } else {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : "STOPPED"));
+      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : LOGO));
     }
   } else {
     u8g2.setCursor(4, 30);
