@@ -65,9 +65,9 @@
 
 # define DEFAULT_H        11315           // default high drive period
 # define DEFAULT_L        22635           // default low drive period (must be <65536)
-# define H_SPEED_L        500            // default low drive for high speed
+# define H_SPEED_L        8               // default low drive for high speed
 # define SPEED_STEP_S     2               // speed inc/dec step amount (inc/red low period)
-# define SPEED_STEP_F     20              // speed inc/dec fast step amount
+# define SPEED_STEP_F     100             // speed inc/dec fast step amount
 
 # define LOGO             "G-Star Trax"
 
@@ -194,6 +194,8 @@ void readButtons() {
 }
 
 void setDefaultSpeed() {
+  high_period    = DEFAULT_H; // current drive high period
+  low_period     = DEFAULT_L; // current drive low period
   cli();//stop interrupts
   OCR1B = DEFAULT_H;
   OCR1A = DEFAULT_L;
@@ -317,19 +319,16 @@ void processRstButton(button_op press) {
         showMsg("RESET");
         ffwd = OFF;
         rwd = OFF;
-        enabled = OFF;
-        setCurrentSpeed();
+        setDefaultSpeed();
         break;
       }
     case BHOLD:
     case BLONG: {
-        showMsg("G-Star Trax");
+        showMsg(LOGO);
         rstPressCount = 0;
         ffwd = OFF;
         rwd = OFF;
         enabled = OFF;
-        high_period    = DEFAULT_H; // current drive high period
-        low_period     = DEFAULT_L; // current drive low period
         setDefaultSpeed();
         break;
       }
@@ -361,7 +360,8 @@ void processRevButton(button_op press) {
 
 void processUpButton(button_op press) {
   if (!enabled) return;
-  if (low_period <= DEFAULT_H) {
+  if (low_period <= H_SPEED_L) {
+    low_period = H_SPEED_L;
     showMsg("MAX SPEED");
     return;
   }
@@ -371,13 +371,21 @@ void processUpButton(button_op press) {
         break;
       }
     case BON: {
-        low_period -= SPEED_STEP_S;
+        if (low_period <= SPEED_STEP_S) {
+          low_period = H_SPEED_L;
+        } else {
+          low_period -= SPEED_STEP_S;
+        }
         showMsg(String(low_period, DEC ));
         break;
       }
     case BLONG:
     case BHOLD: {
-        low_period -= SPEED_STEP_F;
+        if (low_period <= SPEED_STEP_F) {
+          low_period = H_SPEED_L;
+        } else {
+          low_period -= SPEED_STEP_F;
+        }
         showMsg(String(low_period, DEC ));
         break;
       }
@@ -390,7 +398,7 @@ void processUpButton(button_op press) {
 
 void processDownButton(button_op press) {
   if (!enabled) return;
-  if (low_period >= 65534) {
+  if (low_period >= (65534 - SPEED_STEP_S)) {
     showMsg("MIN SPEED");
     return;
   }
