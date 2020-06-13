@@ -70,6 +70,8 @@
 # define SPEED_STEP_F     100             // speed inc/dec fast step amount
 
 # define LOGO             "G-Star Trax"
+# define DISP_X           4
+# define DISP_Y           28
 
 # define BOUNCE_WITH_PROMPT_DETECTION
 # define FONT u8g2_font_logisoso16_tr     // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
@@ -143,6 +145,7 @@ void setup() {
   pinMode(DIRECTION,         OUTPUT);
   pinMode(PULSE,             OUTPUT);
   pinMode(LASER,             OUTPUT);
+  //digitalWrite(LASER, 0);
 
   start_b.attach(BTN_START,   INPUT_PULLUP);
   stop_b.attach (BTN_STOP,    INPUT_PULLUP);
@@ -451,18 +454,20 @@ void showMsg(String message) {
   dispMessage = message;
 }
 
+
+
 void displayMessage() {
   u8g2.clearBuffer();
   u8g2.setFont(FONT);
   if (millis() > msgSetTime + messageShowTime) {
     // clear message
     if (direction) {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : LOGO));
+      u8g2.drawStr(DISP_X, DISP_Y, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : LOGO));
     } else {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : LOGO));
+      u8g2.drawStr(DISP_X, DISP_Y, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : LOGO));
     }
   } else {
-    u8g2.setCursor(4, 30);
+    u8g2.setCursor(DISP_X, DISP_Y);
     u8g2.print(dispMessage);
   }
   u8g2.sendBuffer();
