@@ -75,6 +75,11 @@
 
 # define BOUNCE_WITH_PROMPT_DETECTION
 # define FONT u8g2_font_logisoso16_tr     // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
+// define FONT u8g2_font_unifont_t_0_77 has unicode for better spinner but too small
+
+# define spinChars         3 // count from zero
+# define slowSpin          1000 // number of ms between char changes
+# define fastSpin          100
 
 enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
 
@@ -457,18 +462,48 @@ void showMsg(String message) {
 
 
 void displayMessage() {
+  String toDisplay = "";
   u8g2.clearBuffer();
   u8g2.setFont(FONT);
+  u8g2.setCursor(DISP_X, DISP_Y);
   if (millis() > msgSetTime + messageShowTime) {
-    // clear message
-    if (direction) {
-      u8g2.drawStr(DISP_X, DISP_Y, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : LOGO));
+    if (enabled){
+      if (ffwd) {
+        toDisplay = "Fast Fwd " + getSpin(direction, fastSpin);
+      } else if (rwd) {
+        toDisplay = "Fast Rev " + getSpin(direction, fastSpin);
+      } else {
+        toDisplay = (direction ? "Run Rev " : "Run Fwd ") + getSpin(direction, slowSpin);
+      }
+      u8g2.print(toDisplay);
     } else {
-      u8g2.drawStr(DISP_X, DISP_Y, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : LOGO));
+      u8g2.print(LOGO);
     }
   } else {
-    u8g2.setCursor(DISP_X, DISP_Y);
     u8g2.print(dispMessage);
   }
   u8g2.sendBuffer();
+}
+
+// spinner
+
+String spinner[] = {"|", "/", "-", "\\"};
+int spinIndex = 0;
+long lastSpin = 0;
+
+String getSpin(bool dir, int rate) {
+  long now = millis();
+  if (now > (lastSpin + rate)) {
+    if (dir) {
+      // forward CW
+      spinIndex++;
+      if (spinIndex > spinChars) spinIndex = 0;
+    } else {
+      // rev CCW
+      spinIndex--;
+      if (spinIndex < 0) spinIndex = spinChars;
+    }
+    lastSpin = now;
+  }
+  return spinner[spinIndex];
 }
