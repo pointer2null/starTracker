@@ -1,4 +1,4 @@
-# starTracker
+# Star Tracker
 
 To take a long exposure of the stars you need to comensate for the earths rotation. This is my star tracker.
 
