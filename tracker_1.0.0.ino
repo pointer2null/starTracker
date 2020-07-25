@@ -64,7 +64,7 @@
 # define FAST             160             // switch count before we go to long hold
 
 # define DEFAULT_H        11315           // default high drive period
-# define DEFAULT_L        22635           // default low drive period (must be <65536)
+# define DEFAULT_L        22435           // default low drive period (must be <65536)
 # define H_SPEED_L        8               // default low drive for high speed
 # define SPEED_STEP_S     2               // speed inc/dec step amount (inc/red low period)
 # define SPEED_STEP_F     100             // speed inc/dec fast step amount
@@ -230,6 +230,7 @@ void processLaserButton(button_op press) {
     case BON: {
         if (laser) {
           showMsg("Laser off");
+          laser = OFF;
           digitalWrite(LASER, OFF);
         } else {
           showMsg("Hold for laser");
@@ -237,14 +238,9 @@ void processLaserButton(button_op press) {
         break;
       }
     case BHOLD: {
-        if (laser) {
-          showMsg("Laser off");
-          digitalWrite(LASER, OFF);
-        } else {
-          showMsg("Laser on");
-          digitalWrite(LASER, ON);
-        }
-        laser = !laser;
+        showMsg("Laser on");
+        digitalWrite(LASER, ON);
+        laser = ON;
         break;
       }
     case DEFAULT: {
