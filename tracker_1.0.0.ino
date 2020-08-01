@@ -77,8 +77,8 @@
 # define FONT u8g2_font_logisoso16_tr     // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
 // define FONT u8g2_font_unifont_t_0_77 has unicode for better spinner but too small
 
-# define spinChars         3 // count from zero
-# define slowSpin          1000 // number of ms between char changes
+# define spinChars         3              // count from zero
+# define slowSpin          1000           // number of ms between char changes
 # define fastSpin          100
 
 enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
@@ -87,6 +87,7 @@ enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
 bool          direction      = FORWARD;   // currect direction : FORWARD = CCW
 bool          lastDirection  = FORWARD;
 bool          enabled        = OFF;       // Drive on/off
+bool          disabled       = ON;
 bool          ffwd           = OFF;       // in ffwd mode
 bool          rwd            = OFF;       // in rwd mode
 int           high_period    = DEFAULT_H; // current drive high period
@@ -125,7 +126,7 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 // TIFRx  timer/counter interupt flag register - indicated pending interrupt
 
 void setup() {
-  u8g2.begin(); // Display
+  u8g2.begin();  // Display
   showMsg(LOGO);
   displayMessage();
 
@@ -171,8 +172,12 @@ void setup() {
 
 ISR(TIMER1_COMPA_vect) { //timer1 interrupt
   if (enabled) {
+    digitalWrite(ENABLE, enabled);
     digitalWrite(PULSE, HIGH);
     digitalWrite(DIRECTION, direction);
+  } else {
+    digitalWrite(PULSE, LOW);
+    digitalWrite(ENABLE, disabled);
   }
   // we've reached the max so reset the count
   TCNT1  = 0;
@@ -189,8 +194,6 @@ void loop() {
 }
 
 void readButtons() {
-
-
   processButton(&start_b, &startPressCount, processStartButton);
   processButton(&laser_b, &laserPressCount, processLaserButton);
   processButton(&reset_b, &rstPressCount,   processRstButton);
@@ -255,7 +258,6 @@ void processStartButton(button_op press) {
         if (enabled) {
           enabled = OFF;
           showMsg("STOP");
-          digitalWrite(PULSE, OFF);
         } else {
           enabled = ON;
           showMsg("START");
@@ -319,7 +321,6 @@ void processRwdButton(button_op press) {
     case DEFAULT: {
         break;
       }
-
   }
 }
 
@@ -438,18 +439,21 @@ void processDownButton(button_op press) {
 void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
   b->update();
   if (b->fell()) {
+    // first press, clear previous count if non zero
     (*counter) = 0;
     op(BON);
   } else if (b->rose()) {
+    // button released
     (*counter) = 0;
     op(BOFF);
   } else if (!b->read()) {
+    // button is being held down
     (*counter)++;
     if (*counter > FAST) {
       (*counter) = 0;
       op(BLONG);
     } else if (*counter > SLOW) {
-      (*counter) = 0;
+      // (*counter) = 0; if we reset then we'd never get to FAST
       op(BHOLD);
     } else {
       op(BWAIT); // when you hold the button but before hold is triggered
