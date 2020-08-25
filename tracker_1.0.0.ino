@@ -44,13 +44,13 @@
 
 // Inputs
 # define BTN_START   10                   // start/stop
-# define BTN_RST     9                    // reset
-# define BTN_UP      8                    // speed + 
-# define BTN_FFWD    7                    // FFWD
-# define BTN_RWD     6                    // REW
-# define BTN_DWN     5                    // speed -
-# define BTN_REVERSE 4                    // Reverse DIRECTION
-# define BTN_LASER   3                    // laser on off
+# define BTN_RST     8                    // reset
+# define BTN_UP      6                    // speed + 
+# define BTN_FFWD    5                    // FFWD
+# define BTN_RWD     3                    // REW
+# define BTN_DWN     4                    // speed -
+# define BTN_REVERSE 7                    // Reverse DIRECTION
+# define BTN_LASER   9                    // laser on off
 # define LASER       2                    // high activates laser
 
 // Constants
@@ -172,11 +172,11 @@ void setup() {
 
 ISR(TIMER1_COMPA_vect) { //timer1 interrupt
   if (enabled) {
-    digitalWrite(ENABLE, enabled);
+    digitalWrite(ENABLE, LOW);
     digitalWrite(PULSE, HIGH);
     digitalWrite(DIRECTION, direction);
   } else {
-    digitalWrite(PULSE, LOW);
+    digitalWrite(PULSE, HIGH);
     digitalWrite(ENABLE, disabled);
   }
   // we've reached the max so reset the count
