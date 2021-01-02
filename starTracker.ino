@@ -41,6 +41,8 @@
 # define PULSE       13                   // pin 8 is the step    
 # define DIRECTION   12                   // pin 9 is DIRECTION
 # define ENABLE      11                   // pin 10 is the enable
+# define LASER       2                    // high activates laser
+# define INTERVAL    1                    // Intervalometer active pin
 
 // Inputs
 # define BTN_START   10                   // start/stop
@@ -51,7 +53,6 @@
 # define BTN_DWN     4                    // speed -
 # define BTN_REVERSE 7                    // Reverse DIRECTION
 # define BTN_LASER   9                    // laser on off
-# define LASER       2                    // high activates laser
 
 // Constants
 # define ON               true
@@ -109,7 +110,7 @@ unsigned long ffwdPressCount  = 0;
 
 // debouncers
 Bounce start_b = Bounce();
-Bounce laser_b  = Bounce();
+Bounce laser_b = Bounce();
 Bounce rev_b   = Bounce();
 Bounce rwd_b   = Bounce();
 Bounce up_b    = Bounce();
@@ -194,14 +195,14 @@ void loop() {
 }
 
 void readButtons() {
-  processButton(&start_b, &startPressCount, processStartButton);
-  processButton(&laser_b, &laserPressCount, processLaserButton);
-  processButton(&reset_b, &rstPressCount,   processRstButton);
-  processButton(&ffwd_b,  &ffwdPressCount,  processFfwdButton);
-  processButton(&rwd_b,   &rwdPressCount,   processRwdButton);
-  processButton(&rev_b,   &revPressCount,   processRevButton);
-  processButton(&up_b,    &upPressCount,    processUpButton);
-  processButton(&dwn_b,   &dwnPressCount,   processDownButton);
+  processButton(&start_b, &startPressCount, handleStartButton);
+  processButton(&laser_b, &laserPressCount, handleLaserButton);
+  processButton(&reset_b, &rstPressCount,   handleRstButton);
+  processButton(&ffwd_b,  &ffwdPressCount,  handleFfwdButton);
+  processButton(&rwd_b,   &rwdPressCount,   handleRwdButton);
+  processButton(&rev_b,   &revPressCount,   handleRevButton);
+  processButton(&up_b,    &upPressCount,    handleUpButton);
+  processButton(&dwn_b,   &dwnPressCount,   handleDownButton);
 }
 
 void setDefaultSpeed() {
@@ -228,7 +229,7 @@ void setHighSpeed() {
   sei();                      //allow interrupts
 }
 
-void processLaserButton(button_op press) {
+void handleLaserButton(button_op press) {
   switch (press) {
     case BON: {
         if (laser) {
@@ -252,7 +253,7 @@ void processLaserButton(button_op press) {
   }
 }
 
-void processStartButton(button_op press) {
+void handleStartButton(button_op press) {
   switch (press) {
     case BON: {
         if (enabled) {
@@ -275,7 +276,7 @@ void processStartButton(button_op press) {
   }
 }
 
-void processFfwdButton(button_op press) {
+void handleFfwdButton(button_op press) {
   if (!enabled) return;
   switch (press) {
     case BON: {
@@ -299,7 +300,7 @@ void processFfwdButton(button_op press) {
   }
 }
 
-void processRwdButton(button_op press) {
+void handleRwdButton(button_op press) {
   if (!enabled) return;
   switch (press) {
     case BON: {
@@ -324,7 +325,7 @@ void processRwdButton(button_op press) {
   }
 }
 
-void processRstButton(button_op press) {
+void handleRstButton(button_op press) {
   switch (press) {
     case BON: {
         showMsg("RESET");
@@ -348,7 +349,7 @@ void processRstButton(button_op press) {
   }
 }
 
-void processRevButton(button_op press) {
+void handleRevButton(button_op press) {
   switch (press) {
     case BON: {
         ffwd = OFF;
@@ -368,7 +369,7 @@ void processRevButton(button_op press) {
   }
 }
 
-void processUpButton(button_op press) {
+void handleUpButton(button_op press) {
   if (!enabled) return;
   if (low_period <= H_SPEED_L) {
     low_period = H_SPEED_L;
@@ -406,7 +407,7 @@ void processUpButton(button_op press) {
   setCurrentSpeed();
 }
 
-void processDownButton(button_op press) {
+void handleDownButton(button_op press) {
   if (!enabled) return;
   if (low_period >= (65534 - SPEED_STEP_S)) {
     showMsg("MIN SPEED");
@@ -436,8 +437,12 @@ void processDownButton(button_op press) {
   setCurrentSpeed();
 }
 
+// processButton This processes the button press - it checks for the relevent edge and 
+// hold time then sets the enum value relating to the operation required. It then calls 
+// the relevent handler to handle the actual operation
+// TODO swap the works handler and process!
 void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
-  b->update();
+  b->update(); // read the button
   if (b->fell()) {
     // first press, clear previous count if non zero
     (*counter) = 0;
@@ -449,7 +454,7 @@ void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press
   } else if (!b->read()) {
     // button is being held down
     (*counter)++;
-    if (*counter > FAST) {
+    if (*counter > FAST) { // high count means we've held button for trigger period
       (*counter) = 0;
       op(BLONG);
     } else if (*counter > SLOW) {
