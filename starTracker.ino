@@ -43,36 +43,43 @@
 # define ENABLE      11                   // pin 10 is the enable
 
 // Inputs
-# define BTN_START   10                   // start
-# define BTN_RST     9                    // reset
-# define BTN_UP      8                    // speed + 
-# define BTN_FFWD    7                    // FFWD
-# define BTN_RWD     6                    // REW
-# define BTN_DWN     5                    // speed -
-# define BTN_REVERSE 4                    // Reverse DIRECTION
-# define BTN_STOP    3                    // stop
+# define BTN_START   10                   // start/stop
+# define BTN_RST     8                    // reset
+# define BTN_UP      6                    // speed + 
+# define BTN_FFWD    5                    // FFWD
+# define BTN_RWD     3                    // REW
+# define BTN_DWN     4                    // speed -
+# define BTN_REVERSE 7                    // Reverse DIRECTION
+# define BTN_LASER   9                    // laser on off
 # define LASER       2                    // high activates laser
 
 // Constants
 # define ON               true
 # define OFF              false
-# define FORWARD          true
-# define REVERSE          false
+# define FORWARD          false           // depends on your motor controller
+# define REVERSE          true
 # define messageShowTime  3000            // count time for a message to display before status returns
 
 # define SLOW             80              // switch count before we go to hold
 # define FAST             160             // switch count before we go to long hold
 
 # define DEFAULT_H        11315           // default high drive period
-# define DEFAULT_L        22635           // default low drive period (must be <65536)
+# define DEFAULT_L        22435           // default low drive period (must be <65536)
 # define H_SPEED_L        8               // default low drive for high speed
 # define SPEED_STEP_S     2               // speed inc/dec step amount (inc/red low period)
 # define SPEED_STEP_F     100             // speed inc/dec fast step amount
 
 # define LOGO             "G-Star Trax"
+# define DISP_X           2
+# define DISP_Y           28
 
 # define BOUNCE_WITH_PROMPT_DETECTION
 # define FONT u8g2_font_logisoso16_tr     // choose a suitable font at https://github.com/olikraus/u8g2/wiki/fntlistall
+// define FONT u8g2_font_unifont_t_0_77 has unicode for better spinner but too small
+
+# define spinChars         3              // count from zero
+# define slowSpin          1000           // number of ms between char changes
+# define fastSpin          100
 
 enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
 
@@ -80,6 +87,7 @@ enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
 bool          direction      = FORWARD;   // currect direction : FORWARD = CCW
 bool          lastDirection  = FORWARD;
 bool          enabled        = OFF;       // Drive on/off
+bool          disabled       = ON;
 bool          ffwd           = OFF;       // in ffwd mode
 bool          rwd            = OFF;       // in rwd mode
 int           high_period    = DEFAULT_H; // current drive high period
@@ -91,7 +99,7 @@ unsigned long msgSetTime     = 0;         // timestamp for new message
 
 // counters for button press
 unsigned long startPressCount = 0;
-unsigned long stopPressCount  = 0;
+unsigned long laserPressCount = 0;
 unsigned long rstPressCount   = 0;
 unsigned long upPressCount    = 0;
 unsigned long dwnPressCount   = 0;
@@ -101,7 +109,7 @@ unsigned long ffwdPressCount  = 0;
 
 // debouncers
 Bounce start_b = Bounce();
-Bounce stop_b  = Bounce();
+Bounce laser_b  = Bounce();
 Bounce rev_b   = Bounce();
 Bounce rwd_b   = Bounce();
 Bounce up_b    = Bounce();
@@ -118,7 +126,7 @@ U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
 // TIFRx  timer/counter interupt flag register - indicated pending interrupt
 
 void setup() {
-  u8g2.begin(); // Display
+  u8g2.begin();  // Display
   showMsg(LOGO);
   displayMessage();
 
@@ -143,9 +151,10 @@ void setup() {
   pinMode(DIRECTION,         OUTPUT);
   pinMode(PULSE,             OUTPUT);
   pinMode(LASER,             OUTPUT);
+  //digitalWrite(LASER, 0);
 
   start_b.attach(BTN_START,   INPUT_PULLUP);
-  stop_b.attach (BTN_STOP,    INPUT_PULLUP);
+  laser_b.attach(BTN_LASER,   INPUT_PULLUP);
   reset_b.attach(BTN_RST,     INPUT_PULLUP);
   ffwd_b.attach (BTN_FFWD,    INPUT_PULLUP);
   up_b.attach   (BTN_UP,      INPUT_PULLUP);
@@ -163,8 +172,12 @@ void setup() {
 
 ISR(TIMER1_COMPA_vect) { //timer1 interrupt
   if (enabled) {
+    digitalWrite(ENABLE, LOW);
     digitalWrite(PULSE, HIGH);
     digitalWrite(DIRECTION, direction);
+  } else {
+    digitalWrite(PULSE, HIGH);
+    digitalWrite(ENABLE, disabled);
   }
   // we've reached the max so reset the count
   TCNT1  = 0;
@@ -181,10 +194,8 @@ void loop() {
 }
 
 void readButtons() {
-
-
   processButton(&start_b, &startPressCount, processStartButton);
-  processButton(&stop_b,  &stopPressCount,  processStopButton);
+  processButton(&laser_b, &laserPressCount, processLaserButton);
   processButton(&reset_b, &rstPressCount,   processRstButton);
   processButton(&ffwd_b,  &ffwdPressCount,  processFfwdButton);
   processButton(&rwd_b,   &rwdPressCount,   processRwdButton);
@@ -196,47 +207,43 @@ void readButtons() {
 void setDefaultSpeed() {
   high_period    = DEFAULT_H; // current drive high period
   low_period     = DEFAULT_L; // current drive low period
-  cli();//stop interrupts
+  cli();                      //stop interrupts
   OCR1B = DEFAULT_H;
   OCR1A = DEFAULT_L;
-  sei();//allow interrupts
+  sei();                      //allow interrupts
 }
 
 void setCurrentSpeed() {
-  cli();//stop interrupts
+  cli();                      //stop interrupts
   OCR1B = (int) low_period / 2;
   OCR1A = low_period;
-  sei();//allow interrupts
+  sei();                      //allow interrupts
 }
 
 
 void setHighSpeed() {
-  cli();//stop interrupts
+  cli();                      //stop interrupts
   OCR1B = (int) H_SPEED_L / 2;
   OCR1A = H_SPEED_L;
-  sei();//allow interrupts
+  sei();                      //allow interrupts
 }
 
-void processStopButton(button_op press) {
+void processLaserButton(button_op press) {
   switch (press) {
     case BON: {
-        if (enabled) {
-          showMsg("STOP");
-          enabled = OFF;
-          digitalWrite(PULSE, OFF);
+        if (laser) {
+          showMsg("Laser off");
+          laser = OFF;
+          digitalWrite(LASER, OFF);
+        } else {
+          showMsg("Hold for laser");
         }
         break;
       }
     case BHOLD: {
-        stopPressCount = 0;
-        if (laser) {
-          showMsg("Laser off");
-          digitalWrite(LASER, OFF);
-        } else {
-          showMsg("Laser on");
-          digitalWrite(LASER, ON);
-        }
-        laser = !laser;
+        showMsg("Laser on");
+        digitalWrite(LASER, ON);
+        laser = ON;
         break;
       }
     case DEFAULT: {
@@ -248,7 +255,10 @@ void processStopButton(button_op press) {
 void processStartButton(button_op press) {
   switch (press) {
     case BON: {
-        if (!enabled) {
+        if (enabled) {
+          enabled = OFF;
+          showMsg("STOP");
+        } else {
           enabled = ON;
           showMsg("START");
           setCurrentSpeed();
@@ -276,7 +286,9 @@ void processFfwdButton(button_op press) {
           setCurrentSpeed();
         } else {
           showMsg("FFWD");
+          lastDirection = direction;
           ffwd = ON;
+          rwd = OFF;
           setHighSpeed();
         }
         break;
@@ -309,7 +321,6 @@ void processRwdButton(button_op press) {
     case DEFAULT: {
         break;
       }
-
   }
 }
 
@@ -325,7 +336,6 @@ void processRstButton(button_op press) {
     case BHOLD:
     case BLONG: {
         showMsg(LOGO);
-        rstPressCount = 0;
         ffwd = OFF;
         rwd = OFF;
         enabled = OFF;
@@ -429,15 +439,21 @@ void processDownButton(button_op press) {
 void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
   b->update();
   if (b->fell()) {
+    // first press, clear previous count if non zero
     (*counter) = 0;
     op(BON);
   } else if (b->rose()) {
+    // button released
+    (*counter) = 0;
     op(BOFF);
   } else if (!b->read()) {
+    // button is being held down
     (*counter)++;
     if (*counter > FAST) {
+      (*counter) = 0;
       op(BLONG);
     } else if (*counter > SLOW) {
+      // (*counter) = 0; if we reset then we'd never get to FAST
       op(BHOLD);
     } else {
       op(BWAIT); // when you hold the button but before hold is triggered
@@ -445,25 +461,54 @@ void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press
   }
 }
 
-
 void showMsg(String message) {
   msgSetTime = millis();
   dispMessage = message;
 }
 
 void displayMessage() {
+  String toDisplay = "";
   u8g2.clearBuffer();
   u8g2.setFont(FONT);
+  u8g2.setCursor(DISP_X, DISP_Y);
   if (millis() > msgSetTime + messageShowTime) {
-    // clear message
-    if (direction) {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "<< FFWD CCW" : "< RUN CCW") : LOGO));
+    if (enabled) {
+      if (ffwd) {
+        toDisplay = "Fast Fwd " + getSpin(direction, fastSpin);
+      } else if (rwd) {
+        toDisplay = "Fast Rev " + getSpin(direction, fastSpin);
+      } else {
+        toDisplay = (direction ? "Run Rev " : "Run Fwd ") + getSpin(direction, slowSpin);
+      }
+      u8g2.print(toDisplay);
     } else {
-      u8g2.drawStr(4, 30, (enabled ? (ffwd || rwd ? "RWD CW >>" : "RUN CW >") : LOGO));
+      u8g2.print(LOGO);
     }
   } else {
-    u8g2.setCursor(4, 30);
     u8g2.print(dispMessage);
   }
   u8g2.sendBuffer();
+}
+
+// spinner
+
+String spinner[] = {"|", "/", "-", "\\"};
+int spinIndex = 0;
+long lastSpin = 0;
+
+String getSpin(bool dir, int rate) {
+  long now = millis();
+  if (now > (lastSpin + rate)) {
+    if (dir) {
+      // forward CW
+      spinIndex++;
+      if (spinIndex > spinChars) spinIndex = 0;
+    } else {
+      // rev CCW
+      spinIndex--;
+      if (spinIndex < 0) spinIndex = spinChars;
+    }
+    lastSpin = now;
+  }
+  return spinner[spinIndex];
 }
