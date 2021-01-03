@@ -21,7 +21,8 @@
             "defines": [
                 "_DEBUG",
                 "UNICODE",
-                "_UNICODE"
+                "_UNICODE",
+                "USBCON"
             ],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "gnu11",

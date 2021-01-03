@@ -44,15 +44,35 @@
 # define LASER       2                    // high activates laser
 # define INTERVAL    1                    // Intervalometer active pin
 
+/*
+Buttons:
+Name(pin)
+
+Current:
+Start(10)  Reset(08)  Inc(06)        FFwd(05)
+Laser(09)  Dir(07)    Dec(04)        FRew(03)
+
+New Mode 0:
+Start(10)  FFwd(08)   Int_Start(06)  Inc(05)
+Laser(09)  FRew(07)   Int_set(04)    Dec(03)
+
+New Mode 1:
+Start(10)  FFwd(08)   Reset(06)      Inc(05)
+Laser(09)  FRew(07)   Dir(04)        Dec(03)
+
+*/
 // Inputs
 # define BTN_START   10                   // start/stop
-# define BTN_RST     8                    // reset
-# define BTN_UP      6                    // speed + 
-# define BTN_FFWD    5                    // FFWD
-# define BTN_RWD     3                    // REW
-# define BTN_DWN     4                    // speed -
-# define BTN_REVERSE 7                    // Reverse DIRECTION
 # define BTN_LASER   9                    // laser on off
+# define BTN_FFWD    8                    // FFWD
+# define BTN_RWD     7                    // REW
+
+// mode selectable
+# define BTN_FUNC1   6                    // Start Interval | Reset
+# define BTN_FUNC2   4                    // Set Interval   | Reverse DIRECTION
+// mode operators
+# define BTN_UP      5                    // increment 
+# define BTN_DWN     3                    // decrement
 
 // Constants
 # define ON               true
@@ -83,6 +103,7 @@
 # define fastSpin          100
 
 enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
+enum buttonmode {MODE0, MODE1};
 
 // Control variables
 bool          direction      = FORWARD;   // currect direction : FORWARD = CCW
@@ -94,6 +115,7 @@ bool          rwd            = OFF;       // in rwd mode
 int           high_period    = DEFAULT_H; // current drive high period
 int           low_period     = DEFAULT_L; // current drive low period
 bool          laser          = OFF;       // laser
+buttonmode    mode           = MODE0;     // mode 0 = standard, mode 1 = debug
 
 String        dispMessage;                // current message
 unsigned long msgSetTime     = 0;         // timestamp for new message
@@ -101,22 +123,25 @@ unsigned long msgSetTime     = 0;         // timestamp for new message
 // counters for button press
 unsigned long startPressCount = 0;
 unsigned long laserPressCount = 0;
-unsigned long rstPressCount   = 0;
+unsigned long ffwdPressCount  = 0;
+unsigned long rwdPressCount   = 0;
+
+unsigned long func1PressCount = 0;
+unsigned long func2PressCount = 0;
+
 unsigned long upPressCount    = 0;
 unsigned long dwnPressCount   = 0;
-unsigned long rwdPressCount   = 0;
-unsigned long revPressCount   = 0;
-unsigned long ffwdPressCount  = 0;
 
 // debouncers
 Bounce start_b = Bounce();
 Bounce laser_b = Bounce();
-Bounce rev_b   = Bounce();
+Bounce ffwd_b  = Bounce();
 Bounce rwd_b   = Bounce();
+
+Bounce func1_b = Bounce(); // start | reset
+Bounce func2_b = Bounce(); // set   | rev
 Bounce up_b    = Bounce();
 Bounce dwn_b   = Bounce();
-Bounce ffwd_b  = Bounce();
-Bounce reset_b = Bounce();
 
 // display voodoo
 U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0);
@@ -152,16 +177,17 @@ void setup() {
   pinMode(DIRECTION,         OUTPUT);
   pinMode(PULSE,             OUTPUT);
   pinMode(LASER,             OUTPUT);
-  //digitalWrite(LASER, 0);
 
   start_b.attach(BTN_START,   INPUT_PULLUP);
   laser_b.attach(BTN_LASER,   INPUT_PULLUP);
-  reset_b.attach(BTN_RST,     INPUT_PULLUP);
   ffwd_b.attach (BTN_FFWD,    INPUT_PULLUP);
-  up_b.attach   (BTN_UP,      INPUT_PULLUP);
   rwd_b.attach  (BTN_RWD,     INPUT_PULLUP);
+
+  func1_b.attach(BTN_FUNC1,   INPUT_PULLUP); // start | reset
+  func2_b.attach(BTN_FUNC2,   INPUT_PULLUP); // set   | rev
+  
+  up_b.attach   (BTN_UP,      INPUT_PULLUP);
   dwn_b.attach  (BTN_DWN,     INPUT_PULLUP);
-  rev_b.attach  (BTN_REVERSE, INPUT_PULLUP);
 
   // set initial direction and enable pins
   digitalWrite(DIRECTION, direction);
@@ -197,12 +223,19 @@ void loop() {
 void readButtons() {
   processButton(&start_b, &startPressCount, handleStartButton);
   processButton(&laser_b, &laserPressCount, handleLaserButton);
-  processButton(&reset_b, &rstPressCount,   handleRstButton);
   processButton(&ffwd_b,  &ffwdPressCount,  handleFfwdButton);
   processButton(&rwd_b,   &rwdPressCount,   handleRwdButton);
-  processButton(&rev_b,   &revPressCount,   handleRevButton);
-  processButton(&up_b,    &upPressCount,    handleUpButton);
-  processButton(&dwn_b,   &dwnPressCount,   handleDownButton);
+  if (mode == MODE0) {
+    processButton(&func1_b, &func1PressCount, handleIntStartButton);
+    processButton(&func2_b, &func2PressCount, handleIntSetButton);
+    processButton(&up_b,    &upPressCount,    handleIntIncButton);
+    processButton(&dwn_b,   &dwnPressCount,   handleIntDecButton);
+  } else {
+    processButton(&func1_b, &func1PressCount, handleRstButton);
+    processButton(&func2_b, &func2PressCount, handleRevButton);
+    processButton(&up_b,    &upPressCount,    handleSpeedUpButton);
+    processButton(&dwn_b,   &dwnPressCount,   handleSpeedDownButton);
+  }
 }
 
 void setDefaultSpeed() {
@@ -228,6 +261,78 @@ void setHighSpeed() {
   OCR1A = H_SPEED_L;
   sei();                      //allow interrupts
 }
+
+// intervalometer start 
+void handleIntStartButton(button_op press) {
+  switch (press) {
+    case BON: {
+        showMsg("Start Timer");
+        break;
+      }
+    case BHOLD: {
+        showMsg(LOGO);
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
+}
+
+// set intervelometer
+void handleIntSetButton(button_op press) {
+  switch (press) {
+    case BON: {
+        showMsg("Set");
+        break;
+      }
+    case BHOLD:
+    case BLONG: {
+        showMsg(LOGO);
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
+}
+
+// intervelometer inc
+void handleIntIncButton(button_op press) {
+  switch (press) {
+    case BON: {
+        showMsg("Inc");
+        break;
+      }
+    case BHOLD:
+    case BLONG: {
+        showMsg(LOGO);
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
+}
+
+// intervelometer dec
+void handleIntDecButton(button_op press) {
+  switch (press) {
+    case BON: {
+        showMsg("dec");
+        break;
+      }
+    case BHOLD:
+    case BLONG: {
+        showMsg(LOGO);
+        break;
+      }
+    case DEFAULT: {
+        break;
+      }
+  }
+}
+
 
 void handleLaserButton(button_op press) {
   switch (press) {
@@ -266,8 +371,13 @@ void handleStartButton(button_op press) {
         }
         break;
       }
-    case BHOLD: {
+    case BHOLD: { 
         showMsg(String(low_period, DEC ));
+        break;
+      }
+    case BLONG: {
+        showMsg("MODE 1");
+        mode = MODE1;
         break;
       }
     case DEFAULT: {
@@ -328,15 +438,23 @@ void handleRwdButton(button_op press) {
 void handleRstButton(button_op press) {
   switch (press) {
     case BON: {
-        showMsg("RESET");
+        showMsg("RESET"); 
         ffwd = OFF;
         rwd = OFF;
         setDefaultSpeed();
         break;
       }
-    case BHOLD:
+    case BHOLD: {
+        showMsg("MODE 0");
+        mode = MODE0;
+        ffwd = OFF;
+        rwd = OFF;
+        enabled = OFF;
+        break;
+      }
     case BLONG: {
         showMsg(LOGO);
+        mode = MODE0;
         ffwd = OFF;
         rwd = OFF;
         enabled = OFF;
@@ -369,7 +487,7 @@ void handleRevButton(button_op press) {
   }
 }
 
-void handleUpButton(button_op press) {
+void handleSpeedUpButton(button_op press) {
   if (!enabled) return;
   if (low_period <= H_SPEED_L) {
     low_period = H_SPEED_L;
@@ -407,7 +525,7 @@ void handleUpButton(button_op press) {
   setCurrentSpeed();
 }
 
-void handleDownButton(button_op press) {
+void handleSpeedDownButton(button_op press) {
   if (!enabled) return;
   if (low_period >= (65534 - SPEED_STEP_S)) {
     showMsg("MIN SPEED");
@@ -442,6 +560,9 @@ void handleDownButton(button_op press) {
 // the relevent handler to handle the actual operation
 // TODO swap the works handler and process!
 void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
+  
+  //TODO ideally we need to remember the op and only call it when the button is released
+
   b->update(); // read the button
   if (b->fell()) {
     // first press, clear previous count if non zero
