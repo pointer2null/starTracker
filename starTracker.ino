@@ -36,6 +36,7 @@
 
 #include <U8g2lib.h>
 #include <Bounce2.h>
+#include <GButton.h>
 
 // Outputs
 # define PULSE       13                   // pin 8 is the step    
@@ -102,8 +103,8 @@ Laser(09)  FRew(07)   Dir(04)        Dec(03)
 # define slowSpin          1000           // number of ms between char changes
 # define fastSpin          100
 
-enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
-enum buttonmode {MODE0, MODE1};
+// enum button_op {BON, BOFF, BHOLD, BLONG, BWAIT};
+// enum buttonmode {MODE0, MODE1};
 
 // Control variables
 bool          direction      = FORWARD;   // currect direction : FORWARD = CCW
@@ -559,6 +560,7 @@ void handleSpeedDownButton(button_op press) {
 // hold time then sets the enum value relating to the operation required. It then calls 
 // the relevent handler to handle the actual operation
 // TODO swap the works handler and process!
+// TODO move to class
 void processButton(Bounce *b, unsigned long *counter, void (*op)(button_op press)) {
   
   //TODO ideally we need to remember the op and only call it when the button is released
