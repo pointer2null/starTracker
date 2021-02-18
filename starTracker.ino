@@ -25,12 +25,20 @@
    0.91 INCH OLED Display: Resolution is 128*32
    8 x push buttons
 
-   Siderial day = 86164.1 seconds
+   A sidereal day lasts for 23 hours 56 minutes 4.091 seconds
+   Siderial day = 86164.091 seconds
    gearbox 99.0506:1
    pully 3:1
-   200 steps 16 microsteps
 
-   each microstep = 0.0906145625seconds = 90.6145625ms
+   = 297.1518 revolutions of motor to 1 of output
+      
+   200 steps with 16 microsteps gives 3200 pulses per motor rev
+
+   so 950,885.76 pulses per output shaft revolution
+
+   each pulse = 0.090614556 seconds
+
+   each pulse = 0.0906145625seconds = 90.614556ms
 
 **/
 
@@ -109,7 +117,7 @@ unsigned long ffwdPressCount  = 0;
 
 // debouncers
 Bounce start_b = Bounce();
-Bounce laser_b  = Bounce();
+Bounce laser_b = Bounce();
 Bounce rev_b   = Bounce();
 Bounce rwd_b   = Bounce();
 Bounce up_b    = Bounce();
@@ -169,10 +177,17 @@ void setup() {
   showMsg("Ready");
 }
 
+/*
+  A         B         A
+   _________
+  |         V         ^
+  ^         |_________|
+*/
 
 ISR(TIMER1_COMPA_vect) { //timer1 interrupt
   if (enabled) {
     digitalWrite(ENABLE, LOW);
+    // set output high - this will stay high until compb is triggered sending it low.
     digitalWrite(PULSE, HIGH);
     digitalWrite(DIRECTION, direction);
   } else {
@@ -184,7 +199,8 @@ ISR(TIMER1_COMPA_vect) { //timer1 interrupt
 }
 
 ISR(TIMER1_COMPB_vect) { //timer1 interrupt
-  digitalWrite(13, LOW);
+  // set output low - this will stay low until compa is triggered sending it high.
+  digitalWrite(PULSE, LOW);
 }
 
 
