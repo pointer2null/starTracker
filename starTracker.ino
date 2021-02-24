@@ -12,7 +12,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-   (c) 2020 Gary Butler grbutler@gmail.com
+   (c) 2020-2021 Gary Butler grbutler@gmail.com
 
    StarTracker control. When a Nema 17 or equivelent stepper is connected to a compatable controller
    and the output is geared as shown, then the final output shaft should revolve once per siderial day.
@@ -44,6 +44,7 @@
 
 #include <U8g2lib.h>
 #include <Bounce2.h>
+//include "GButton.h"
 
 // Outputs
 # define PULSE       13                   // pin 8 is the step    
@@ -115,7 +116,7 @@ unsigned long rwdPressCount   = 0;
 unsigned long revPressCount   = 0;
 unsigned long ffwdPressCount  = 0;
 
-// debouncers
+// debouncers X
 Bounce start_b = Bounce();
 Bounce laser_b = Bounce();
 Bounce rev_b   = Bounce();
@@ -292,9 +293,13 @@ void processStartButton(button_op press) {
 }
 
 void processFfwdButton(button_op press) {
-  if (!enabled) return;
   switch (press) {
     case BON: {
+        // nudge
+        showMsg("Nudge forward");
+    }
+    case BHOLD: {
+        if (!enabled) return; // only operate if on
         if (ffwd) {
           showMsg("FFWD OFF");
           ffwd = OFF;
@@ -316,9 +321,13 @@ void processFfwdButton(button_op press) {
 }
 
 void processRwdButton(button_op press) {
-  if (!enabled) return;
   switch (press) {
     case BON: {
+        // nudge
+        showMsg("Nudge backward");
+    }
+    case BHOLD: {
+        if (!enabled) return;
         if (rwd) {
           showMsg("REWIND OFF");
           rwd = OFF;
