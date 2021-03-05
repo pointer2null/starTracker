@@ -20,27 +20,49 @@
 #ifndef GButton_h
 #define GButton_h
 
-#include <Bounce2.h>
+#if defined(ARDUINO) && ARDUINO >= 100
+#include "Arduino.h"
+#else
+#include "WProgram.h"
+#endif
 
-enum buttonmode {MODE0, MODE1};
+#include <inttypes.h>
 
-/*
-BOFF:   Button is currently up
-BPRESS: Button has been pressed and released before the first threshold
-BHOLD:  Button has has been held beyond first threshold and released
-BLONG:  Button has been held beyond second threshold  
-BWAIT:  Button is currently pressed but not released or passed first threshold
-*/
-enum button_op {BOFF, BPRESS, BHOLD, BLONG, BWAIT};
+enum buttonmode
+{
+  MODE0, // normal
+  MODE1  // extended function
+};
 
 class GButton
 {
-  public:
-    GButton(Bounce *b, void (*handler)(button_op press), unsigned long firstThresholdMs, unsigned long secondThreasholdMs);
-    void process();
-  private:
-    unsigned long pressStart;
-    buttonmode mode;
+public:
+  GButton(int pin, int pinmode, void (*handler)(uint8_t button_flags), uint16_t firstThresholdMs, uint16_t secondThreasholdMs);
+  GButton(int pin, int pinmode, void (*handler)(uint8_t button_flags));
+  GButton(int pin, int pinmode);
+  void process();
+
+private:
+  /* Button flags
+BOFF:    Button is currently off
+BWAIT:   Button is currently pressed 
+BCLICK:  Button has been pressed and released 
+BHOLD:   Button has has been held beyond first threshold 
+BLONG:   Button has been held beyond second threshold  
+BDOUBLE: Button double click
+*/
+  static const uint8_t BOFF = 0b00000001;
+  static const uint8_t BWAIT = 0b00000010;
+  static const uint8_t BPRESS = 0b00000100;
+  static const uint8_t BHOLD = 0b00000100;
+  static const uint8_t BLONG = 0b00001000;
+  uint16_t pressStart;
+  uint16_t firstThresholdMs;
+  uint16_t secondThreasholdMs;
+  buttonmode mode;
+  int attachedPin;
+  int pinMode;
+  void *callbackHandler;
 };
 
 #endif
